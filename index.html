@@ -72,7 +72,8 @@
   <div id="map"></div>
 
   <script>
-    const map = L.map('map').setView([10.9878, -74.7889], 13);
+    // 🗺️ Mapa con zoom inicial más cercano
+    const map = L.map('map').setView([10.9878, -74.7889], 14);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
       maxZoom: 19,
       attribution: '© OpenStreetMap · Diseño Mafe'
@@ -83,10 +84,10 @@
     const svg = d3.select("#map").select("svg");
     const g = svg.append("g");
 
-    // Generar conductores como objetos con ángulo
-    let drivers = d3.range(180).map(i => ({
-      lat: 10.88 + Math.random() * 0.18,
-      lon: -74.90 + Math.random() * 0.18,
+    // 🚗 Generar muchísimos conductores (700)
+    let drivers = d3.range(700).map(i => ({
+      lat: 10.85 + Math.random() * 0.25,
+      lon: -74.95 + Math.random() * 0.25,
       name: `Conductor #${i + 1}`,
       angle: Math.random() * 2 * Math.PI
     }));
@@ -98,64 +99,50 @@
     }
 
     function drawVoronoi() {
-      // 🧹 Limpia el gráfico
       g.selectAll("*").remove();
-
-      // 📍 Convierte coordenadas (lat, lon) a (x, y)
       const points = drivers.map(d => projectPoint(d.lat, d.lon));
       const xs = points.map(p => p.x);
       const ys = points.map(p => p.y);
-
-      // 📏 Define los límites
       const padding = 50;
       const minX = Math.min(...xs) - padding;
       const maxX = Math.max(...xs) + padding;
       const minY = Math.min(...ys) - padding;
       const maxY = Math.max(...ys) + padding;
 
-      // ⚙️ Crea Delaunay y Voronoi
       const delaunay = d3.Delaunay.from(points.map(p => [p.x, p.y]));
       const voronoi = delaunay.voronoi([minX, minY, maxX, maxY]);
 
-      // 🗺️ Dibuja celdas de Voronoi
       g.selectAll(".cell")
         .data(drivers)
         .enter()
         .append("path")
         .attr("class", "voronoi")
         .attr("d", (d, i) => voronoi.renderCell(i))
-        .attr("stroke", "#999")
+        .attr("stroke", "rgba(255,255,255,0.08)")
         .attr("fill", "none");
 
-      // 🚗 Dibuja los conductores
       g.selectAll(".driver")
         .data(drivers)
         .enter()
         .append("circle")
         .attr("class", "driver")
-        .attr("r", 5)
+        .attr("r", 4)
         .attr("cx", d => projectPoint(d.lat, d.lon).x)
         .attr("cy", d => projectPoint(d.lat, d.lon).y)
-        .attr("fill", "steelblue");
+        .attr("fill", "#00aaff");
 
-      // 👤 Si hay usuario
       if (userPoint) {
         const user = projectPoint(userPoint[0], userPoint[1]);
-
-        // 🔍 Encuentra el conductor más cercano
         const nearestIndex = delaunay.find(user.x, user.y);
         const nearestDriver = drivers[nearestIndex];
         const nearestPos = projectPoint(nearestDriver.lat, nearestDriver.lon);
 
-        // ✨ Resalta la celda Voronoi del más cercano
         g.append("path")
-          .attr("class", "highlight")
           .attr("d", voronoi.renderCell(nearestIndex))
           .attr("fill", "rgba(255, 200, 0, 0.3)")
           .attr("stroke", "orange")
           .attr("stroke-width", 2);
 
-        // 👤 Dibuja al usuario
         g.append("circle")
           .attr("class", "user")
           .attr("cx", user.x)
@@ -163,7 +150,6 @@
           .attr("r", 10)
           .attr("fill", "tomato");
 
-        // 🚗 Resalta al conductor más cercano
         g.append("circle")
           .attr("class", "nearest")
           .attr("cx", nearestPos.x)
@@ -171,44 +157,32 @@
           .attr("r", 8)
           .attr("fill", "orange");
 
-        // 📏 Calcula y muestra ETA para los conductores cercanos
+        // mostrar tiempo estimado en los más cercanos
         drivers.forEach((d, i) => {
           const p = projectPoint(d.lat, d.lon);
           const distance = Math.hypot(p.x - user.x, p.y - user.y);
-
-          if (distance < 300) { // dentro del rango de cercanía
+          if (distance < 300) {
             const eta = Math.round(distance / 50);
-
-            // colorea las celdas cercanas
             g.append("path")
               .attr("d", voronoi.renderCell(i))
               .attr("fill", "rgba(100, 180, 255, 0.15)");
-
-            // tiempo estimado
             g.append("text")
               .attr("class", "time-label")
               .attr("x", p.x)
               .attr("y", p.y - 10)
-              .attr("text-anchor", "middle")
-              .attr("fill", "#333")
-              .attr("font-size", "12px")
               .text(`${eta} min`);
           }
         });
       }
     }
 
-
-
     function animateDrivers() {
       drivers.forEach(d => {
-        const speed = 0.0012;
+        const speed = 0.0014;
         d.lat += Math.cos(d.angle) * speed;
         d.lon += Math.sin(d.angle) * speed;
-
-        // Rebote en límites sin retroceder abrupto
-        if (d.lat < 10.88 || d.lat > 11.06) d.angle = Math.PI - d.angle;
-        if (d.lon < -74.90 || d.lon > -74.72) d.angle = -d.angle;
+        if (d.lat < 10.85 || d.lat > 11.10) d.angle = Math.PI - d.angle;
+        if (d.lon < -74.95 || d.lon > -74.70) d.angle = -d.angle;
       });
       drawVoronoi();
       updateProximity();
@@ -225,12 +199,12 @@
       g.selectAll(".driver")
         .attr("class", (d, i) => {
           if (distances[i] < maxDist * 0.12) return "driver near";
-          if (distances[i] < maxDist * 0.30) return "driver mid";
+          //if (distances[i] < maxDist * 0.30) return "driver mid";
           return "driver";
         });
     }
 
-    map.on("click", function(e) {
+    map.on("click", e => {
       userPoint = [e.latlng.lat, e.latlng.lng];
       drawVoronoi();
       updateProximity();
