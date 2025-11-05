@@ -98,27 +98,36 @@
     }
 
     function drawVoronoi() {
+      // 🧹 Limpia el gráfico
       g.selectAll("*").remove();
-      const points = drivers.map(d => projectPoint(d.lat, d.lon));
 
+      // 📍 Convierte coordenadas (lat, lon) a (x, y)
+      const points = drivers.map(d => projectPoint(d.lat, d.lon));
       const xs = points.map(p => p.x);
       const ys = points.map(p => p.y);
+
+      // 📏 Define los límites
       const padding = 50;
       const minX = Math.min(...xs) - padding;
       const maxX = Math.max(...xs) + padding;
       const minY = Math.min(...ys) - padding;
       const maxY = Math.max(...ys) + padding;
 
-      const voronoi = d3.Delaunay.from(points.map(p => [p.x, p.y]))
-                         .voronoi([minX, minY, maxX, maxY]);
+      // ⚙️ Crea Delaunay y Voronoi
+      const delaunay = d3.Delaunay.from(points.map(p => [p.x, p.y]));
+      const voronoi = delaunay.voronoi([minX, minY, maxX, maxY]);
 
+      // 🗺️ Dibuja celdas de Voronoi
       g.selectAll(".cell")
         .data(drivers)
         .enter()
         .append("path")
         .attr("class", "voronoi")
-        .attr("d", (d, i) => voronoi.renderCell(i));
+        .attr("d", (d, i) => voronoi.renderCell(i))
+        .attr("stroke", "#999")
+        .attr("fill", "none");
 
+      // 🚗 Dibuja los conductores
       g.selectAll(".driver")
         .data(drivers)
         .enter()
@@ -126,29 +135,70 @@
         .attr("class", "driver")
         .attr("r", 5)
         .attr("cx", d => projectPoint(d.lat, d.lon).x)
-        .attr("cy", d => projectPoint(d.lat, d.lon).y);
+        .attr("cy", d => projectPoint(d.lat, d.lon).y)
+        .attr("fill", "steelblue");
 
+      // 👤 Si hay usuario
       if (userPoint) {
         const user = projectPoint(userPoint[0], userPoint[1]);
-        drivers.forEach(d => {
-          const p = projectPoint(d.lat, d.lon);
-          const distance = Math.hypot(p.x - user.x, p.y - user.y);
-          if (distance < 150 || distance < 300) { // near o mid
-            const eta = Math.round(distance / 50);
-            g.append("text")
-              .attr("class", "time-label")
-              .attr("x", p.x)
-              .attr("y", p.y - 12)
-              .text(`${eta} min`);
-          }
-        });
+
+        // 🔍 Encuentra el conductor más cercano
+        const nearestIndex = delaunay.find(user.x, user.y);
+        const nearestDriver = drivers[nearestIndex];
+        const nearestPos = projectPoint(nearestDriver.lat, nearestDriver.lon);
+
+        // ✨ Resalta la celda Voronoi del más cercano
+        g.append("path")
+          .attr("class", "highlight")
+          .attr("d", voronoi.renderCell(nearestIndex))
+          .attr("fill", "rgba(255, 200, 0, 0.3)")
+          .attr("stroke", "orange")
+          .attr("stroke-width", 2);
+
+        // 👤 Dibuja al usuario
         g.append("circle")
           .attr("class", "user")
           .attr("cx", user.x)
           .attr("cy", user.y)
-          .attr("r", 10);
+          .attr("r", 10)
+          .attr("fill", "tomato");
+
+        // 🚗 Resalta al conductor más cercano
+        g.append("circle")
+          .attr("class", "nearest")
+          .attr("cx", nearestPos.x)
+          .attr("cy", nearestPos.y)
+          .attr("r", 8)
+          .attr("fill", "orange");
+
+        // 📏 Calcula y muestra ETA para los conductores cercanos
+        drivers.forEach((d, i) => {
+          const p = projectPoint(d.lat, d.lon);
+          const distance = Math.hypot(p.x - user.x, p.y - user.y);
+
+          if (distance < 300) { // dentro del rango de cercanía
+            const eta = Math.round(distance / 50);
+
+            // colorea las celdas cercanas
+            g.append("path")
+              .attr("d", voronoi.renderCell(i))
+              .attr("fill", "rgba(100, 180, 255, 0.15)");
+
+            // tiempo estimado
+            g.append("text")
+              .attr("class", "time-label")
+              .attr("x", p.x)
+              .attr("y", p.y - 10)
+              .attr("text-anchor", "middle")
+              .attr("fill", "#333")
+              .attr("font-size", "12px")
+              .text(`${eta} min`);
+          }
+        });
       }
     }
+
+
 
     function animateDrivers() {
       drivers.forEach(d => {
